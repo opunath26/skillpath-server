@@ -28,16 +28,27 @@ async function run() {
 
         const db = client.db('skill_db');
         const coursesCollection = db.collection('courses');
+        const studentsCollection = db.collection('students')
 
-        app.get('/courses', async(req, res) => {
-            const cursor = coursesCollection.find();
+        app.get('/courses', async (req, res) => {
+
+            console.log(req.query)
+            const email = req.query.email;
+            const query = {}
+            if(email){
+                query.email = email;
+            }
+
+
+            const projectsFields = { title: 1, price: 1, image: 1, rating: 1 }
+            const cursor = coursesCollection.find(query).sort({ price: -1 });
             const result = await cursor.toArray();
             res.send(result);
         })
 
-        app.get('/courses/:id', async(req, res) => {
+        app.get('/courses/:id', async (req, res) => {
             const id = req.params.id;
-            const query = { _id: new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
             const result = await coursesCollection.findOne(query);
             res.send(result);
         })
@@ -48,7 +59,7 @@ async function run() {
             res.send(result);
         })
 
-        app.patch('/courses/:id', async(req, res) => {
+        app.patch('/courses/:id', async (req, res) => {
             const id = req.params.id;
             const updatedCourse = req.body;
             const query = { _id: new ObjectId(id) }
@@ -66,6 +77,26 @@ async function run() {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const result = await coursesCollection.deleteOne(query);
+            res.send(result);
+        })
+
+        // students related apis
+        app.get('/students', async(req, res) => {
+
+            const email = req.query.email;
+            const query = {};
+            if(email){
+                query.email = email;
+            }
+
+            const cursor = studentsCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        })
+
+        app.post('/students', async(req, res) => {
+            const newStudent = req.body;
+            const result = await studentsCollection.insertOne(newStudent);
             res.send(result);
         })
 
