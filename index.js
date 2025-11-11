@@ -29,13 +29,29 @@ async function run() {
         const db = client.db('skill_db');
         const coursesCollection = db.collection('courses');
         const studentsCollection = db.collection('students')
+        const usersCollection = db.collection('users')
+
+        app.post('/users', async (req, res) => {
+            const newUser = req.body;
+
+            const email = req.body.email;
+            const query = { email: email }
+            const existingUser = await usersCollection.findOne(query);
+            if (existingUser) {
+                res.send('user already exist. do not need to insert again')
+            }
+            else {
+                const result = await usersCollection.insertOne(newUser);
+                res.send(result);
+            }
+        })
 
         app.get('/courses', async (req, res) => {
 
             console.log(req.query)
             const email = req.query.email;
             const query = {}
-            if(email){
+            if (email) {
                 query.email = email;
             }
 
@@ -81,11 +97,11 @@ async function run() {
         })
 
         // students related apis
-        app.get('/students', async(req, res) => {
+        app.get('/students', async (req, res) => {
 
             const email = req.query.email;
             const query = {};
-            if(email){
+            if (email) {
                 query.email = email;
             }
 
@@ -94,7 +110,7 @@ async function run() {
             res.send(result);
         })
 
-        app.post('/students', async(req, res) => {
+        app.post('/students', async (req, res) => {
             const newStudent = req.body;
             const result = await studentsCollection.insertOne(newStudent);
             res.send(result);
