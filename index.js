@@ -46,6 +46,42 @@ async function run() {
             }
         })
 
+        app.get('/instructors', async (req, res) => {
+  try {
+    const db = client.db('skill_db');
+    const coursesCollection = db.collection('courses');
+
+    const courses = await coursesCollection.find({}).toArray();
+
+    
+    const uniqueInstructors = [];
+    const seen = new Set();
+
+    courses.forEach((course) => {
+      if (!seen.has(course.instructorEmail)) {
+        seen.add(course.instructorEmail);
+        uniqueInstructors.push({
+          instructorName: course.instructorName,
+          instructorEmail: course.instructorEmail,
+          instructorPhoto: course.instructorPhoto,
+          totalCourses: courses.filter(c => c.instructorEmail === course.instructorEmail).length,
+          avgRating: (
+            courses
+              .filter(c => c.instructorEmail === course.instructorEmail)
+              .reduce((sum, c) => sum + (c.rating || 0), 0) /
+            courses.filter(c => c.instructorEmail === course.instructorEmail).length
+          ).toFixed(1)
+        });
+      }
+    });
+
+    res.send(uniqueInstructors);
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
+});
+
+
         app.get('/courses', async (req, res) => {
 
             console.log(req.query)
