@@ -6,7 +6,7 @@ const port = process.env.PORT || 3000
 
 // middleware
 app.use(cors({
-    origin: ['http://localhost:5173'],
+    origin: ['http://localhost:5174'],
     credentials: true,
 }));
 app.use(express.json())
@@ -33,6 +33,7 @@ async function run() {
         const coursesCollection = db.collection('courses');
         const studentsCollection = db.collection('students')
         const usersCollection = db.collection('users')
+        const enrollmentsCollection = db.collection('enrollments');
 
         app.post('/users', async (req, res) => {
             const newUser = req.body;
@@ -55,7 +56,6 @@ async function run() {
                 const coursesCollection = db.collection('courses');
 
                 const courses = await coursesCollection.find({}).toArray();
-
 
                 const uniqueInstructors = [];
                 const seen = new Set();
@@ -84,16 +84,13 @@ async function run() {
             }
         });
 
-
         app.get('/courses', async (req, res) => {
-
             console.log(req.query)
             const email = req.query.email;
             const query = {}
             if (email) {
                 query.email = email;
             }
-
 
             const projectsFields = { title: 1, price: 1, image: 1, rating: 1 }
             const cursor = coursesCollection.find(query);
@@ -118,7 +115,6 @@ async function run() {
                 res.status(500).send({ error: "Server error" });
             }
         });
-
 
         app.post('/courses', async (req, res) => {
             const newCourse = req.body;
@@ -149,7 +145,6 @@ async function run() {
 
         // students related apis
         app.get('/students', async (req, res) => {
-
             const email = req.query.email;
             const query = {};
             if (email) {
@@ -166,6 +161,41 @@ async function run() {
             const result = await studentsCollection.insertOne(newStudent);
             res.send(result);
         })
+
+        //  Enroll API
+       app.post('/enroll', async (req, res) => {
+    try {
+
+        const enrollmentData = req.body;
+        enrollmentData.createdAt = new Date();
+
+        //  Check if already enrolled
+        const exists = await enrollmentsCollection.findOne({
+            courseId: enrollmentData.courseId,
+            studentEmail: enrollmentData.studentEmail
+        });
+
+        if (exists) {
+            return res.status(400).send({
+                success: false,
+                message: 'Already enrolled in this course'
+            });
+        }
+
+        //  Insert new enrollment
+        const result = await enrollmentsCollection.insertOne(enrollmentData);
+
+        res.status(201).send({
+            success: true,
+            message: 'Successfully Enrolled!',
+            data: result
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ success: false, message: 'Server Error' });
+    }
+});
 
 
         await client.db("admin").command({ ping: 1 });
