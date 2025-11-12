@@ -5,7 +5,10 @@ const app = express();
 const port = process.env.PORT || 3000
 
 // middleware
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:5173'],
+    credentials: true,
+}));
 app.use(express.json())
 
 const uri = "mongodb+srv://skillPathUser:U0zzlsNWXbVU0zAP@cluster0.q4baesu.mongodb.net/?appName=Cluster0";
@@ -47,39 +50,39 @@ async function run() {
         })
 
         app.get('/instructors', async (req, res) => {
-  try {
-    const db = client.db('skill_db');
-    const coursesCollection = db.collection('courses');
+            try {
+                const db = client.db('skill_db');
+                const coursesCollection = db.collection('courses');
 
-    const courses = await coursesCollection.find({}).toArray();
+                const courses = await coursesCollection.find({}).toArray();
 
-    
-    const uniqueInstructors = [];
-    const seen = new Set();
 
-    courses.forEach((course) => {
-      if (!seen.has(course.instructorEmail)) {
-        seen.add(course.instructorEmail);
-        uniqueInstructors.push({
-          instructorName: course.instructorName,
-          instructorEmail: course.instructorEmail,
-          instructorPhoto: course.instructorPhoto,
-          totalCourses: courses.filter(c => c.instructorEmail === course.instructorEmail).length,
-          avgRating: (
-            courses
-              .filter(c => c.instructorEmail === course.instructorEmail)
-              .reduce((sum, c) => sum + (c.rating || 0), 0) /
-            courses.filter(c => c.instructorEmail === course.instructorEmail).length
-          ).toFixed(1)
+                const uniqueInstructors = [];
+                const seen = new Set();
+
+                courses.forEach((course) => {
+                    if (!seen.has(course.instructorEmail)) {
+                        seen.add(course.instructorEmail);
+                        uniqueInstructors.push({
+                            instructorName: course.instructorName,
+                            instructorEmail: course.instructorEmail,
+                            instructorPhoto: course.instructorPhoto,
+                            totalCourses: courses.filter(c => c.instructorEmail === course.instructorEmail).length,
+                            avgRating: (
+                                courses
+                                    .filter(c => c.instructorEmail === course.instructorEmail)
+                                    .reduce((sum, c) => sum + (c.rating || 0), 0) /
+                                courses.filter(c => c.instructorEmail === course.instructorEmail).length
+                            ).toFixed(1)
+                        });
+                    }
+                });
+
+                res.send(uniqueInstructors);
+            } catch (err) {
+                res.status(500).send({ error: err.message });
+            }
         });
-      }
-    });
-
-    res.send(uniqueInstructors);
-  } catch (err) {
-    res.status(500).send({ error: err.message });
-  }
-});
 
 
         app.get('/courses', async (req, res) => {
@@ -93,17 +96,29 @@ async function run() {
 
 
             const projectsFields = { title: 1, price: 1, image: 1, rating: 1 }
-            const cursor = coursesCollection.find(query).sort({ price: -1 });
+            const cursor = coursesCollection.find(query);
             const result = await cursor.toArray();
             res.send(result);
         })
 
         app.get('/courses/:id', async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) }
-            const result = await coursesCollection.findOne(query);
-            res.send(result);
-        })
+            res.setHeader("Access-Control-Allow-Origin", "http://localhost:5174");
+            try {
+                const id = req.params.id;
+
+                const result = await coursesCollection.findOne({ _id: id });
+
+                if (!result) {
+                    return res.status(404).send({ error: "Course not found" });
+                }
+
+                res.send(result);
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({ error: "Server error" });
+            }
+        });
+
 
         app.post('/courses', async (req, res) => {
             const newCourse = req.body;
