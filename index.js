@@ -6,7 +6,7 @@ const port = process.env.PORT || 3000
 
 // middleware
 app.use(cors({
-    origin: ['http://localhost:5174'],
+    origin: ['http://localhost:5173'],
     credentials: true,
 }));
 app.use(express.json())
@@ -98,43 +98,70 @@ async function run() {
             res.send(result);
         })
 
-        app.get('/courses/:id', async (req, res) => {
-            res.setHeader("Access-Control-Allow-Origin", "http://localhost:5174");
-            try {
-                const id = req.params.id;
+       
 
-                const result = await coursesCollection.findOne({ _id: id });
+        app.get('/courses/:id', async (req, res) => {
+            try {
+                const { id } = req.params;
+                console.log(id);
+
+                const result = await coursesCollection.findOne({ _id: new ObjectId(id) });
 
                 if (!result) {
-                    return res.status(404).send({ error: "Course not found" });
+                    return res.status(404).send({ success: false, message: "Course not found" });
                 }
 
-                res.send(result);
+                res.send({
+                    success: true,
+                    result
+                });
             } catch (err) {
                 console.error(err);
-                res.status(500).send({ error: "Server error" });
+                res.status(500).send({ success: false, message: "Server error" });
             }
         });
+
 
         app.post('/courses', async (req, res) => {
             const newCourse = req.body;
             const result = await coursesCollection.insertOne(newCourse);
-            res.send(result);
+            res.send({
+                success: true,
+                result
+            });
         })
 
+
         app.patch('/courses/:id', async (req, res) => {
-            const id = req.params.id;
-            const updatedCourse = req.body;
-            const query = { _id: new ObjectId(id) }
-            const update = {
-                $set: {
-                    name: updatedCourse.name,
-                    price: updatedCourse.price
-                }
-            }
-            const result = await coursesCollection.updateOne(query, update)
-            res.send(result)
-        })
+  try {
+    const id = req.params.id;
+    const updatedCourse = req.body;
+    const query = { _id: new ObjectId(id) };
+
+    const updateDoc = {
+      $set: {
+        title: updatedCourse.title,
+        price: updatedCourse.price,
+        description: updatedCourse.description,
+        duration: updatedCourse.duration,
+        image: updatedCourse.image,
+        rating: updatedCourse.rating,
+      }
+    };
+
+    const result = await coursesCollection.updateOne(query, updateDoc);
+
+    if (result.modifiedCount === 0) {
+      return res.status(404).send({ success: false, message: "Course not updated or not found" });
+    }
+
+    res.send({ success: true, message: "Course updated successfully!" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ success: false, message: "Server error" });
+  }
+});
+
 
         app.delete('/courses/:id', async (req, res) => {
             const id = req.params.id;
@@ -163,39 +190,39 @@ async function run() {
         })
 
         //  Enroll API
-       app.post('/enroll', async (req, res) => {
-    try {
+        app.post('/enroll', async (req, res) => {
+            try {
 
-        const enrollmentData = req.body;
-        enrollmentData.createdAt = new Date();
+                const enrollmentData = req.body;
+                enrollmentData.createdAt = new Date();
 
-        //  Check if already enrolled
-        const exists = await enrollmentsCollection.findOne({
-            courseId: enrollmentData.courseId,
-            studentEmail: enrollmentData.studentEmail
+                //  Check if already enrolled
+                const exists = await enrollmentsCollection.findOne({
+                    courseId: enrollmentData.courseId,
+                    studentEmail: enrollmentData.studentEmail
+                });
+
+                if (exists) {
+                    return res.status(400).send({
+                        success: false,
+                        message: 'Already enrolled in this course'
+                    });
+                }
+
+                //  Insert new enrollment
+                const result = await enrollmentsCollection.insertOne(enrollmentData);
+
+                res.status(201).send({
+                    success: true,
+                    message: 'Successfully Enrolled!',
+                    data: result
+                });
+
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({ success: false, message: 'Server Error' });
+            }
         });
-
-        if (exists) {
-            return res.status(400).send({
-                success: false,
-                message: 'Already enrolled in this course'
-            });
-        }
-
-        //  Insert new enrollment
-        const result = await enrollmentsCollection.insertOne(enrollmentData);
-
-        res.status(201).send({
-            success: true,
-            message: 'Successfully Enrolled!',
-            data: result
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).send({ success: false, message: 'Server Error' });
-    }
-});
 
 
         await client.db("admin").command({ ping: 1 });
