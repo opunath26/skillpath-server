@@ -100,10 +100,10 @@ async function run() {
 
 
 
-        app.get('/courses/:id',(req, res, next) => {
+        app.get('/courses/:id', (req, res, next) => {
             console.log('ami middlwire');
             next();
-        } ,  async (req, res) => {
+        }, async (req, res) => {
             try {
                 const { id } = req.params;
                 console.log(id);
@@ -192,8 +192,25 @@ async function run() {
             res.send(result);
         })
 
+        // Fetch enrollments by student email
+        app.get('/enrollments', async (req, res) => {
+            const email = req.query.email;
+            if (!email) {
+                return res.status(400).send({ success: false, message: "Email query param required" });
+            }
+
+            try {
+                const enrollments = await enrollmentsCollection.find({ studentEmail: email }).toArray();
+                res.send(enrollments);
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({ success: false, message: "Server error" });
+            }
+        });
+
+
         //  Enroll API
-        app.post('/enroll', async (req, res) => {
+        app.post('/enrollments', async (req, res) => {
             try {
 
                 const enrollmentData = req.body;
@@ -226,6 +243,37 @@ async function run() {
                 res.status(500).send({ success: false, message: 'Server Error' });
             }
         });
+
+        // Delete Enrollment by ID
+        app.delete('/enrollments/:id', async (req, res) => {
+            try {
+                const id = req.params.id;
+
+                const result = await enrollmentsCollection.deleteOne({
+                    _id: new ObjectId(id)
+                });
+
+                if (result.deletedCount === 0) {
+                    return res.status(404).send({
+                        success: false,
+                        message: "Enrollment not found"
+                    });
+                }
+
+                res.send({
+                    success: true,
+                    message: "Enrollment deleted successfully"
+                });
+
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({
+                    success: false,
+                    message: "Server Error"
+                });
+            }
+        });
+
 
 
         await client.db("admin").command({ ping: 1 });
