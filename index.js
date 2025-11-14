@@ -93,14 +93,17 @@ async function run() {
             }
 
             const projectsFields = { title: 1, price: 1, image: 1, rating: 1 }
-            const cursor = coursesCollection.find(query);
+            const cursor = coursesCollection.find(query).sort({ createdAt: 'desc' });
             const result = await cursor.toArray();
             res.send(result);
         })
 
-       
 
-        app.get('/courses/:id', async (req, res) => {
+
+        app.get('/courses/:id',(req, res, next) => {
+            console.log('ami middlwire');
+            next();
+        } ,  async (req, res) => {
             try {
                 const { id } = req.params;
                 console.log(id);
@@ -133,34 +136,34 @@ async function run() {
 
 
         app.patch('/courses/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const updatedCourse = req.body;
-    const query = { _id: new ObjectId(id) };
+            try {
+                const id = req.params.id;
+                const updatedCourse = req.body;
+                const query = { _id: new ObjectId(id) };
 
-    const updateDoc = {
-      $set: {
-        title: updatedCourse.title,
-        price: updatedCourse.price,
-        description: updatedCourse.description,
-        duration: updatedCourse.duration,
-        image: updatedCourse.image,
-        rating: updatedCourse.rating,
-      }
-    };
+                const updateDoc = {
+                    $set: {
+                        title: updatedCourse.title,
+                        price: updatedCourse.price,
+                        description: updatedCourse.description,
+                        duration: updatedCourse.duration,
+                        image: updatedCourse.image,
+                        rating: updatedCourse.rating,
+                    }
+                };
 
-    const result = await coursesCollection.updateOne(query, updateDoc);
+                const result = await coursesCollection.updateOne(query, updateDoc);
 
-    if (result.modifiedCount === 0) {
-      return res.status(404).send({ success: false, message: "Course not updated or not found" });
-    }
+                if (result.modifiedCount === 0) {
+                    return res.status(404).send({ success: false, message: "Course not updated or not found" });
+                }
 
-    res.send({ success: true, message: "Course updated successfully!" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send({ success: false, message: "Server error" });
-  }
-});
+                res.send({ success: true, message: "Course updated successfully!" });
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({ success: false, message: "Server error" });
+            }
+        });
 
 
         app.delete('/courses/:id', async (req, res) => {
