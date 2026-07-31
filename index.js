@@ -1,18 +1,43 @@
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-const app = express();
-const port = process.env.PORT || 3000
+const admin = require("firebase-admin");
+require('dotenv').config();
 
-// middleware
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Firebase Admin Setup
+try {
+    if (process.env.FIREBASE_SERVICE_KEY) {
+        const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, "base64").toString("utf8");
+        const serviceAccount = JSON.parse(decoded);
+        
+        if (!admin.apps.length) {
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount)
+            });
+        }
+    }
+} catch (error) {
+    console.error("Firebase Admin initialization error:", error.message);
+}
+
+// Middleware
 app.use(cors({
-    origin: ['http://localhost:5173'],
+    origin: ['https://ubiquitous-longma-59b633.netlify.app', 'http://localhost:5173'],
     credentials: true,
 }));
-app.use(express.json())
+app.use(express.json());
 
-const uri = "mongodb+srv://skillPathUser:U0zzlsNWXbVU0zAP@cluster0.q4baesu.mongodb.net/?appName=Cluster0";
+const middleware = (req, res, next) => {
+    console.log('Middleware working — Request URL:', req.originalUrl);
+    next();
+};
+app.use(middleware);
 
+// MongoDB Client
+const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri, {
     serverApi: {
         version: ServerApiVersion.v1,
@@ -22,57 +47,51 @@ const client = new MongoClient(uri, {
 });
 
 app.get('/', (req, res) => {
-    res.send('SkillPath Server is running')
-})
+    res.send('SkillPath Server is running');
+});
 
 async function run() {
     try {
-        await client.connect();
-
         const db = client.db('skill_db');
         const coursesCollection = db.collection('courses');
-        const studentsCollection = db.collection('students')
-        const usersCollection = db.collection('users')
+        const studentsCollection = db.collection('students');
+        const usersCollection = db.collection('users');
         const enrollmentsCollection = db.collection('enrollments');
 
+        // --- Users API ---
         app.post('/users', async (req, res) => {
             const newUser = req.body;
-
             const email = req.body.email;
-            const query = { email: email }
+            const query = { email: email };
             const existingUser = await usersCollection.findOne(query);
+            
             if (existingUser) {
-                res.send('user already exist. do not need to insert again')
+                return res.send({ success: false, message: 'User already exists' });
             }
-            else {
-                const result = await usersCollection.insertOne(newUser);
-                res.send(result);
-            }
-        })
+            
+            const result = await usersCollection.insertOne(newUser);
+            res.send({ success: true, result });
+        });
 
+        // --- Instructors API ---
         app.get('/instructors', async (req, res) => {
             try {
-                const db = client.db('skill_db');
-                const coursesCollection = db.collection('courses');
-
                 const courses = await coursesCollection.find({}).toArray();
-
                 const uniqueInstructors = [];
                 const seen = new Set();
 
                 courses.forEach((course) => {
-                    if (!seen.has(course.instructorEmail)) {
+                    if (course.instructorEmail && !seen.has(course.instructorEmail)) {
                         seen.add(course.instructorEmail);
+                        const instructorCourses = courses.filter(c => c.instructorEmail === course.instructorEmail);
+                        
                         uniqueInstructors.push({
                             instructorName: course.instructorName,
                             instructorEmail: course.instructorEmail,
                             instructorPhoto: course.instructorPhoto,
-                            totalCourses: courses.filter(c => c.instructorEmail === course.instructorEmail).length,
+                            totalCourses: instructorCourses.length,
                             avgRating: (
-                                courses
-                                    .filter(c => c.instructorEmail === course.instructorEmail)
-                                    .reduce((sum, c) => sum + (c.rating || 0), 0) /
-                                courses.filter(c => c.instructorEmail === course.instructorEmail).length
+                                instructorCourses.reduce((sum, c) => sum + (c.rating || 0), 0) / instructorCourses.length
                             ).toFixed(1)
                         });
                     }
@@ -84,56 +103,39 @@ async function run() {
             }
         });
 
+        // --- Courses APIs ---
         app.get('/courses', async (req, res) => {
-            console.log(req.query)
             const email = req.query.email;
-            const query = {}
+            const query = {};
             if (email) {
                 query.email = email;
             }
 
-            const projectsFields = { title: 1, price: 1, image: 1, rating: 1 }
             const cursor = coursesCollection.find(query).sort({ createdAt: 'desc' });
             const result = await cursor.toArray();
             res.send(result);
-        })
+        });
 
-
-
-        app.get('/courses/:id', (req, res, next) => {
-            console.log('ami middlwire');
-            next();
-        }, async (req, res) => {
+        app.get('/courses/:id', async (req, res) => {
             try {
                 const { id } = req.params;
-                console.log(id);
-
                 const result = await coursesCollection.findOne({ _id: new ObjectId(id) });
 
                 if (!result) {
                     return res.status(404).send({ success: false, message: "Course not found" });
                 }
 
-                res.send({
-                    success: true,
-                    result
-                });
+                res.send({ success: true, result });
             } catch (err) {
-                console.error(err);
                 res.status(500).send({ success: false, message: "Server error" });
             }
         });
 
-
         app.post('/courses', async (req, res) => {
             const newCourse = req.body;
             const result = await coursesCollection.insertOne(newCourse);
-            res.send({
-                success: true,
-                result
-            });
-        })
-
+            res.send({ success: true, result });
+        });
 
         app.patch('/courses/:id', async (req, res) => {
             try {
@@ -160,20 +162,18 @@ async function run() {
 
                 res.send({ success: true, message: "Course updated successfully!" });
             } catch (err) {
-                console.error(err);
                 res.status(500).send({ success: false, message: "Server error" });
             }
         });
 
-
         app.delete('/courses/:id', async (req, res) => {
             const id = req.params.id;
-            const query = { _id: new ObjectId(id) }
+            const query = { _id: new ObjectId(id) };
             const result = await coursesCollection.deleteOne(query);
             res.send(result);
-        })
+        });
 
-        // students related apis
+        // --- Students APIs ---
         app.get('/students', async (req, res) => {
             const email = req.query.email;
             const query = {};
@@ -184,15 +184,15 @@ async function run() {
             const cursor = studentsCollection.find(query);
             const result = await cursor.toArray();
             res.send(result);
-        })
+        });
 
         app.post('/students', async (req, res) => {
             const newStudent = req.body;
             const result = await studentsCollection.insertOne(newStudent);
             res.send(result);
-        })
+        });
 
-        // Fetch enrollments by student email
+        // --- Enrollments APIs ---
         app.get('/enrollments', async (req, res) => {
             const email = req.query.email;
             if (!email) {
@@ -203,20 +203,15 @@ async function run() {
                 const enrollments = await enrollmentsCollection.find({ studentEmail: email }).toArray();
                 res.send(enrollments);
             } catch (err) {
-                console.error(err);
                 res.status(500).send({ success: false, message: "Server error" });
             }
         });
 
-
-        //  Enroll API
         app.post('/enrollments', async (req, res) => {
             try {
-
                 const enrollmentData = req.body;
                 enrollmentData.createdAt = new Date();
 
-                //  Check if already enrolled
                 const exists = await enrollmentsCollection.findOne({
                     courseId: enrollmentData.courseId,
                     studentEmail: enrollmentData.studentEmail
@@ -229,9 +224,7 @@ async function run() {
                     });
                 }
 
-                //  Insert new enrollment
                 const result = await enrollmentsCollection.insertOne(enrollmentData);
-
                 res.status(201).send({
                     success: true,
                     message: 'Successfully Enrolled!',
@@ -239,19 +232,14 @@ async function run() {
                 });
 
             } catch (err) {
-                console.error(err);
                 res.status(500).send({ success: false, message: 'Server Error' });
             }
         });
 
-        // Delete Enrollment by ID
         app.delete('/enrollments/:id', async (req, res) => {
             try {
                 const id = req.params.id;
-
-                const result = await enrollmentsCollection.deleteOne({
-                    _id: new ObjectId(id)
-                });
+                const result = await enrollmentsCollection.deleteOne({ _id: new ObjectId(id) });
 
                 if (result.deletedCount === 0) {
                     return res.status(404).send({
@@ -266,7 +254,6 @@ async function run() {
                 });
 
             } catch (err) {
-                console.error(err);
                 res.status(500).send({
                     success: false,
                     message: "Server Error"
@@ -274,18 +261,14 @@ async function run() {
             }
         });
 
-
-
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
-    }
-    finally {
-
-    }
+        console.log("Successfully connected to MongoDB!");
+    } finally {}
 }
 
-run().catch(console.dir)
+run().catch(console.dir);
 
 app.listen(port, () => {
-    console.log(`SkillPath Server is running on port ${port}`)
-})
+    console.log(`SkillPath Server is running on port ${port}`);
+});
+
+module.exports = app;
