@@ -74,7 +74,7 @@ async function run() {
             res.send({ success: true, result });
         });
 
-        // --- Instructors APIs (From Dedicated Collection) ---
+        // --- Instructors APIs ---
         app.get('/instructors', async (req, res) => {
             try {
                 const instructors = await instructorsCollection.find({}).toArray();
@@ -185,13 +185,19 @@ async function run() {
 
         // --- Enrollments APIs ---
         app.get('/enrollments', async (req, res) => {
-            const email = req.query.email;
+            const { email, courseId } = req.query;
+
             if (!email) {
                 return res.status(400).send({ success: false, message: "Email query param required" });
             }
 
             try {
-                const enrollments = await enrollmentsCollection.find({ studentEmail: email }).toArray();
+                const query = { studentEmail: email };
+                if (courseId) {
+                    query.courseId = courseId;
+                }
+
+                const enrollments = await enrollmentsCollection.find(query).toArray();
                 res.send(enrollments);
             } catch (err) {
                 res.status(500).send({ success: false, message: "Server error" });
