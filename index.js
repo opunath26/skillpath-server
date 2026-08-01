@@ -12,7 +12,7 @@ try {
     if (process.env.FIREBASE_SERVICE_KEY) {
         const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, "base64").toString("utf8");
         const serviceAccount = JSON.parse(decoded);
-        
+
         if (!admin.apps.length) {
             admin.initializeApp({
                 credential: admin.credential.cert(serviceAccount)
@@ -57,6 +57,7 @@ async function run() {
         const studentsCollection = db.collection('students');
         const usersCollection = db.collection('users');
         const enrollmentsCollection = db.collection('enrollments');
+        const instructorsCollection = db.collection('instructors');
 
         // --- Users API ---
         app.post('/users', async (req, res) => {
@@ -64,42 +65,32 @@ async function run() {
             const email = req.body.email;
             const query = { email: email };
             const existingUser = await usersCollection.findOne(query);
-            
+
             if (existingUser) {
                 return res.send({ success: false, message: 'User already exists' });
             }
-            
+
             const result = await usersCollection.insertOne(newUser);
             res.send({ success: true, result });
         });
 
-        // --- Instructors API ---
+        // --- Instructors APIs (From Dedicated Collection) ---
         app.get('/instructors', async (req, res) => {
             try {
-                const courses = await coursesCollection.find({}).toArray();
-                const uniqueInstructors = [];
-                const seen = new Set();
-
-                courses.forEach((course) => {
-                    if (course.instructorEmail && !seen.has(course.instructorEmail)) {
-                        seen.add(course.instructorEmail);
-                        const instructorCourses = courses.filter(c => c.instructorEmail === course.instructorEmail);
-                        
-                        uniqueInstructors.push({
-                            instructorName: course.instructorName,
-                            instructorEmail: course.instructorEmail,
-                            instructorPhoto: course.instructorPhoto,
-                            totalCourses: instructorCourses.length,
-                            avgRating: (
-                                instructorCourses.reduce((sum, c) => sum + (c.rating || 0), 0) / instructorCourses.length
-                            ).toFixed(1)
-                        });
-                    }
-                });
-
-                res.send(uniqueInstructors);
+                const instructors = await instructorsCollection.find({}).toArray();
+                res.send(instructors);
             } catch (err) {
-                res.status(500).send({ error: err.message });
+                res.status(500).send({ success: false, message: "Error fetching instructors" });
+            }
+        });
+
+        app.post('/instructors', async (req, res) => {
+            try {
+                const newInstructor = req.body;
+                const result = await instructorsCollection.insertOne(newInstructor);
+                res.send({ success: true, result });
+            } catch (err) {
+                res.status(500).send({ success: false, message: "Error adding instructor" });
             }
         });
 
@@ -262,7 +253,7 @@ async function run() {
         });
 
         console.log("Successfully connected to MongoDB!");
-    } finally {}
+    } finally { }
 }
 
 run().catch(console.dir);
