@@ -129,33 +129,36 @@ async function run() {
         });
 
         app.patch('/courses/:id', async (req, res) => {
-            try {
-                const id = req.params.id;
-                const updatedCourse = req.body;
-                const query = { _id: new ObjectId(id) };
+    try {
+        const id = req.params.id;
+        const updatedCourse = req.body;
+        const query = { _id: new ObjectId(id) };
 
-                const updateDoc = {
-                    $set: {
-                        title: updatedCourse.title,
-                        price: updatedCourse.price,
-                        description: updatedCourse.description,
-                        duration: updatedCourse.duration,
-                        image: updatedCourse.image,
-                        rating: updatedCourse.rating,
-                    }
-                };
-
-                const result = await coursesCollection.updateOne(query, updateDoc);
-
-                if (result.modifiedCount === 0) {
-                    return res.status(404).send({ success: false, message: "Course not updated or not found" });
-                }
-
-                res.send({ success: true, message: "Course updated successfully!" });
-            } catch (err) {
-                res.status(500).send({ success: false, message: "Server error" });
+        const updateDoc = {
+            $set: {
+                title: updatedCourse.title,
+                category: updatedCourse.category,
+                price: updatedCourse.price,
+                description: updatedCourse.description,
+                duration: updatedCourse.duration,
+                image: updatedCourse.image,
+                thumbnail: updatedCourse.thumbnail,
+                rating: updatedCourse.rating,
             }
-        });
+        };
+
+        const result = await coursesCollection.updateOne(query, updateDoc);
+
+        if (result.matchedCount === 0) {
+            return res.status(404).send({ success: false, message: "Course not found" });
+        }
+
+        res.send({ success: true, message: "Course updated successfully!", result });
+    } catch (err) {
+        console.error("Update error:", err);
+        res.status(500).send({ success: false, message: "Server error" });
+    }
+});
 
         app.delete('/courses/:id', async (req, res) => {
             const id = req.params.id;
