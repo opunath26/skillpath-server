@@ -25,7 +25,7 @@ try {
 
 // Middleware
 app.use(cors({
-    origin: ['https://ubiquitous-longma-59b633.netlify.app', 'http://localhost:5173'],
+    origin: ['https://ubiquitous-longma-59b633.netlify.app', 'http://localhost:5173' ,'https://skillpath-25.vercel.app'],
     credentials: true,
 }));
 app.use(express.json());
